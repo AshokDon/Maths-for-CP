@@ -1,0 +1,261 @@
+# Blog 03 — Number Theory I: Primes, the Sieve, and GCD
+
+> Series template: **Intuition → Derivation → Worked Examples → Practice (where the math
+> is used) → Coding Problems.** Code in **C++** and **Python**.
+
+Number theory is the biggest math module in CP, and it all starts here: the atoms (primes) and
+the most-used tool (GCD). We'll derive every formula from its definition — no memorizing.
+
+---
+
+# Topic A — Primes and the Sieve
+
+## Intuition: primes are the atoms of the integers
+
+A **prime** is a whole number greater than 1 whose only divisors are `1` and itself: `2, 3, 5, 7,
+11, …`. Everything else (a **composite**) is built by multiplying primes together: `12 = 2·2·3`.
+Just like molecules break into atoms, **every integer breaks into a unique product of primes** —
+this is the Fundamental Theorem of Arithmetic, and it's why primes show up everywhere in CP.
+
+## Testing one number: why we only check up to √n
+
+The obvious primality test: try dividing `n` by every number from `2` to `n−1`. That's `O(n)` —
+too slow. Here's the first-principles improvement.
+
+Suppose `n` has a divisor `a`, so `n = a · b` for some `b`. The two factors can't *both* be larger
+than `√n`, because then `a · b > √n · √n = n`, which is too big. So **at least one factor is ≤ √n.**
+That means: if `n` has any divisor at all, it has one no bigger than `√n`. We only need to check up
+to `√n`:
+
+**C++**
+```cpp
+bool isPrime(long long n) {
+    if (n < 2) return false;
+    for (long long i = 2; i * i <= n; i++)   // i*i <= n  means  i <= √n
+        if (n % i == 0) return false;
+    return true;
+}
+```
+**Python**
+```python
+def is_prime(n):
+    if n < 2: return False
+    i = 2
+    while i * i <= n:
+        if n % i == 0: return False
+        i += 1
+    return True
+```
+
+That drops one test from `O(n)` to `O(√n)`. (We write `i*i <= n` instead of `i <= sqrt(n)` to
+avoid slow/imprecise floating-point.)
+
+## Finding *all* primes up to N: the Sieve of Eratosthenes
+
+When you need every prime up to `N` (common when answering many queries), testing each one
+separately is wasteful. **Flip the problem.** Instead of asking "is this prime?", *cross out the
+composites*, because we know exactly what they are: every composite is a multiple of some smaller
+prime.
+
+The recipe, derived straight from the definition:
+
+1. Assume every number `2…N` is prime.
+2. Take the smallest uncrossed number `p` — it's prime (nothing smaller divides it).
+3. **Cross out** `2p, 3p, 4p, …` — each is a multiple of `p`, hence composite *by definition*.
+4. Repeat with the next uncrossed number.
+5. Whatever survives is prime.
+
+**C++**
+```cpp
+vector<bool> sieve(int N) {
+    vector<bool> prime(N + 1, true);
+    prime[0] = prime[1] = false;
+    for (int p = 2; (long long)p * p <= N; p++)   // stop at √N (same √ reason!)
+        if (prime[p])
+            for (int j = p * p; j <= N; j += p)    // start at p*p, step by p
+                prime[j] = false;
+    return prime;
+}
+```
+**Python**
+```python
+def sieve(N):
+    prime = [True] * (N + 1)
+    prime[0] = prime[1] = False
+    p = 2
+    while p * p <= N:
+        if prime[p]:
+            for j in range(p * p, N + 1, p):
+                prime[j] = False
+        p += 1
+    return prime
+```
+
+Two optimizations we *derived* rather than copied:
+- **Stop the outer loop at `√N`:** by the same factor argument as above, any composite ≤ N has a
+  prime factor ≤ √N, so it's already crossed once we pass √N.
+- **Start crossing from `p·p`:** smaller multiples like `2p, 3p` were already crossed out by the
+  smaller primes `2, 3`. No point redoing them.
+
+This runs in about `O(N log log N)` — effectively linear. For `N = 10⁷` it's a blink.
+
+## Prime factorization (trial division)
+
+To break `n` into its prime atoms: pull out each prime factor as many times as it divides, going
+up only to `√n` (same reason again — any remaining factor bigger than `√n` must be a single prime).
+
+**C++**
+```cpp
+vector<long long> factorize(long long n) {
+    vector<long long> factors;
+    for (long long p = 2; p * p <= n; p++)
+        while (n % p == 0) { factors.push_back(p); n /= p; }
+    if (n > 1) factors.push_back(n);   // leftover is a prime > √n
+    return factors;
+}
+```
+
+## Worked example: factorization → counting divisors (a combinatorics bonus)
+
+Factor `360`:
+```
+360 / 2 = 180 / 2 = 90 / 2 = 45 / 3 = 15 / 3 = 5 (prime)
+360 = 2³ · 3² · 5¹
+```
+
+Now, **how many divisors does 360 have?** Don't list them — *count the choices* (exactly the
+first-principles move from the combinatorics blog). A divisor is built by choosing how many of
+each prime to include:
+- power of 2: any of `{0,1,2,3}` → **4** choices
+- power of 3: any of `{0,1,2}` → **3** choices
+- power of 5: any of `{0,1}` → **2** choices
+
+Independent choices multiply: `4 · 3 · 2 = 24` divisors. In general, if
+`n = p₁^a₁ · p₂^a₂ · … · p_k^a_k`, the number of divisors is `(a₁+1)(a₂+1)…(a_k+1)`. You just
+derived a real formula from one counting argument.
+
+## 🎯 Where this math is used (practice — spot the pattern)
+
+1. "Count the divisors of each of these 10⁵ numbers." → sieve-style precompute or √n factorization.
+2. "How many integers in [1, N] are divisible by none of these primes?" → primes + inclusion–exclusion (later blog).
+3. "Simplify this fraction / check if two numbers share a factor." → factorization or GCD (Topic B).
+4. "Find Euler's totient φ(n)" (counting blog) → needs the prime factorization of `n`.
+5. "Is `n` prime?" for `n` up to ~10¹⁸ → trial division fails; you'll need Miller–Rabin (advanced blog) — but recognize *when* √n isn't enough.
+
+## 💻 Coding problems
+
+| Problem | Link | Skill |
+|---------|------|-------|
+| Counting Divisors | https://cses.fi/problemset/task/1713 | factorization / sieve-style divisor count |
+| Divisor Analysis | https://cses.fi/problemset/task/2182 | divisor count, sum, product from factorization |
+| Codeforces `number theory` tag | https://codeforces.com/problemset?tags=number+theory | mixed |
+
+**References:**
+CP-Algorithms — Sieve of Eratosthenes → https://cp-algorithms.com/algebra/sieve-of-eratosthenes.html
+CP-Algorithms — Divisors → https://cp-algorithms.com/algebra/divisors.html
+
+---
+
+# Topic B — GCD and the Euclidean Algorithm
+
+## Intuition: the largest measuring stick that fits both
+
+The **greatest common divisor** `gcd(a, b)` is the largest number that divides *both* `a` and `b`
+with no remainder. Picture two rods of length `a` and `b`; `gcd` is the longest ruler that
+measures both exactly. It's the engine behind simplifying fractions, modular inverses, the Chinese
+Remainder Theorem, and Diophantine equations — so it's worth understanding *why* the fast method
+works.
+
+## Derivation: the one fact that makes it fast
+
+Listing all divisors of both numbers is slow. The Euclidean algorithm rests on a single clean fact:
+
+> **`gcd(a, b) = gcd(b, a mod b)`**
+
+**Why it's true (full proof, it's short).** Write `a = q·b + r`, where `r = a mod b`. We show the
+two pairs have *exactly the same common divisors*, so they must have the same *greatest* one:
+- If `d` divides both `a` and `b`, then `d` divides `r = a − q·b` (a difference of multiples of `d`).
+  So `d` is also a common divisor of `b` and `r`.
+- Conversely, if `d` divides both `b` and `r`, then `d` divides `a = q·b + r`. So `d` is a common
+  divisor of `a` and `b`.
+
+The set of common divisors is identical on both sides → the greatest one is identical too. Each
+step replaces `(a, b)` with the smaller pair `(b, a mod b)`, shrinking fast until the second number
+hits `0`. And `gcd(a, 0) = a` (everything divides 0, so the limiting factor is just `a`).
+
+**C++** (recursive — reads exactly like the formula)
+```cpp
+long long gcd(long long a, long long b) {
+    return b == 0 ? a : gcd(b, a % b);
+}
+long long lcm(long long a, long long b) {
+    return a / gcd(a, b) * b;   // divide first to avoid overflow
+}
+```
+**Python**
+```python
+def gcd(a, b):
+    return a if b == 0 else gcd(b, a % b)
+
+def lcm(a, b):
+    return a // gcd(a, b) * b
+```
+(C++ has built-in `std::__gcd(a,b)` / `std::gcd`; Python has `math.gcd`. Learn the loop first.)
+
+## Worked example: gcd(48, 18)
+
+| step | a | b | a mod b |
+|-----|----|----|---------|
+| 1 | 48 | 18 | 48 mod 18 = **12** |
+| 2 | 18 | 12 | 18 mod 12 = **6** |
+| 3 | 12 | 6 | 12 mod 6 = **0** |
+| 4 | 6 | 0 | → **gcd = 6** |
+
+Check: divisors of 48 and 18 share `1, 2, 3, 6` — largest is `6`. ✓ It took 3 steps, not a scan of
+every divisor. (The number of steps is `O(log min(a,b))` — provably fast.)
+
+## LCM from GCD (derived, not memorized)
+
+The **least common multiple** is `lcm(a, b) = a·b / gcd(a, b)`. Why? Write `g = gcd(a,b)`, so
+`a = g·x` and `b = g·y` where `x, y` share no factors. The smallest number that's a multiple of both
+must contain `g`, `x`, and `y` once each: `g·x·y`. And `g·x·y = (g·x)(g·y)/g = a·b/g`. (Compute as
+`a / g * b` so you don't overflow on the intermediate product.)
+
+## 🎯 Where this math is used (practice — spot the pattern)
+
+1. "Reduce the fraction `a/b` to lowest terms." → divide both by `gcd(a, b)`.
+2. "Two events repeat every `a` and `b` seconds; when do they coincide?" → `lcm(a, b)`.
+3. "Are `a` and `b` coprime?" → `gcd(a, b) == 1`. (This unlocks modular inverses & CRT in the next blogs.)
+4. "Make all array elements equal using operations that preserve their gcd." → the gcd is invariant.
+5. "Maximize the gcd over all pairs in an array." → counting multiples per candidate divisor.
+
+## 💻 Coding problems
+
+| Problem | Link | Skill |
+|---------|------|-------|
+| Common Divisors | https://cses.fi/problemset/task/1081 | max pairwise gcd via divisor counting |
+| Codeforces `number theory` / `math` tags | https://codeforces.com/problemset?tags=math | gcd/lcm reasoning |
+
+**References:**
+CP-Algorithms — Euclidean algorithm → https://cp-algorithms.com/algebra/euclid-algorithm.html
+USACO Guide — (number theory modules) → https://usaco.guide/
+
+---
+
+## Recap
+
+- **Primes** are the atoms of integers; test one in `O(√n)` (because a factor must be ≤ √n), find
+  all of them with the **Sieve** in `O(N log log N)`, and a number's full **prime factorization**
+  hands you its divisor count for free via a counting argument.
+- **`gcd(a, b) = gcd(b, a mod b)`** because both pairs share the exact same common divisors — giving
+  an `O(log)` algorithm, and `lcm = a·b / gcd` falls right out of it.
+
+### Next up
+**Blog 04 — Number Theory II: Modular Arithmetic & Modular Inverse**, where the `power()` engine
+from Blog 02 and the coprimality idea from this post finally pay off: we'll derive *why*
+`a^(p−2) mod p` is the multiplicative inverse, and unlock division under a modulus — the key that
+makes `nCr mod p` (next module) possible.
+
+> *Primes and gcd look like trivia until you notice they're the hidden machinery under fractions,
+> inverses, and counting. That's the payoff of building from first principles — the "boring"
+> foundations turn out to be the load-bearing ones.*
