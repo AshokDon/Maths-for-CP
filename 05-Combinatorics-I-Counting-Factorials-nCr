@@ -1,0 +1,250 @@
+# Blog 05 — Combinatorics I: Counting, Factorials, and nCr
+
+> Series template: **Intuition → Derivation → Worked Examples → Practice (where the math
+> is used) → Coding Problems.** Code in **C++** and **Python**.
+
+This is the post the whole series has been building toward — and it's where your **original
+handwritten notes** live (`n!`, `nCr`, Pascal's triangle, grid paths). We'll re-derive all of it
+from one idea, then compute `nCr mod p` using the `power()` engine (Blog 02) and Fermat inverse
+(Blog 04). Everything connects here.
+
+---
+
+# Topic A — The Multiplication Principle, Factorials & Permutations
+
+## Intuition: counting is just multiplying choices
+
+Almost all of counting rests on a single idea, the **multiplication principle**:
+
+> If you make a sequence of independent choices — `a` options, then `b` options, then `c` — the
+> total number of outcomes is `a × b × c`.
+
+Why *multiply*? Because each option for the first choice opens up `b` fresh options for the second,
+which each open `c` for the third. The possibilities branch and multiply. That's the engine; the
+rest of this blog is just applying it carefully.
+
+## Factorials: arranging `n` things
+
+This is exactly the "6 boxes" argument from your notes. **How many ways can you arrange `n` distinct
+items in a row?** Fill the slots left to right:
+
+```
+slot 1: n choices    (any item)
+slot 2: n−1 choices  (one is used up)
+slot 3: n−2 choices
+   ⋮
+slot n: 1 choice
+```
+
+Multiply (multiplication principle): `n × (n−1) × (n−2) × … × 1`. We call this **`n!`** ("n
+factorial"). The formula didn't appear from nowhere — it *fell out* of counting choices.
+
+```
+n! = n × (n−1) × … × 2 × 1
+```
+
+By convention **`0! = 1`**: there is exactly one way to arrange nothing (the empty arrangement). Far
+from arbitrary, this convention is what makes every formula below work cleanly at the edges.
+
+## Permutations: arranging `r` chosen from `n`
+
+What if you only fill `r` slots from `n` items (order still matters)? Same idea, but stop after `r`
+slots:
+
+```
+P(n, r) = n × (n−1) × … × (n−r+1)        ← exactly r factors
+        = n! / (n−r)!
+```
+
+The `n!/(n−r)!` form just says "all `n!` orderings, divided out by the `(n−r)!` orderings of the
+items we never placed." (This is the derivation on page 3 of your notes.)
+
+## Worked examples
+
+- **Arrange 5 books:** `5! = 5·4·3·2·1 = 120`.
+- **Pick a president and VP from 5 people (order matters):** `P(5,2) = 5·4 = 20`.
+- **Seat 3 of 5 guests in 3 chairs:** `P(5,3) = 5·4·3 = 60`.
+
+## 🎯 Where this math is used (practice — spot the pattern)
+
+1. "How many ways to order/rank these items?" → `n!`.
+2. "Assign distinct roles (1st, 2nd, 3rd) to people." → permutations `P(n,r)`.
+3. "Count anagrams of a word with repeated letters" → `n!` divided by the factorials of each
+   repeated letter's count (multiset permutations).
+4. "Number of distinct shuffles of a deck." → factorial of the deck size.
+5. Counting DP transitions where each step has a fixed number of independent choices.
+
+## 💻 Coding problems
+
+| Problem | Link | Skill |
+|---------|------|-------|
+| Creating Strings II | https://cses.fi/problemset/task/1715 | multiset permutations: `n! / (∏ cᵢ!)` |
+| Christmas Party | https://cses.fi/problemset/task/1717 | derangements (a permutation-counting twist — Combinatorics II) |
+| Codeforces `combinatorics` tag | https://codeforces.com/problemset?tags=combinatorics | mixed |
+
+---
+
+# Topic B — Combinations (nCr), Pascal's Triangle & nCr mod p
+
+## Intuition: choosing, when order doesn't matter
+
+A **combination** answers: "how many ways to **choose** `r` items from `n`, where order doesn't
+matter?" Picking `{3, 4}` is the same as picking `{4, 3}` — it's the same group. We write it
+`nCr` or `C(n, r)` or `(n choose r)`.
+
+## Derivation: remove the overcounting (your page-4 argument)
+
+Start from something we *already* know — ordered picks, `P(n, r) = n·(n−1)·…·(n−r+1)`. But that
+counts `{3,4}` and `{4,3}` as different. Each unordered group of `r` items was counted once for
+**every ordering of those `r` items** — and there are `r!` orderings. So we've overcounted by a
+factor of `r!`. Divide it out:
+
+```
+nCr = P(n, r) / r! = [ n·(n−1)·…·(n−r+1) ] / r!  =  n! / ( r! · (n−r)! )
+```
+
+This is *precisely* your notes: `5C2 = (5·4)/2! = 10` and `5C3 = (5·4·3)/3! = 10`. You divided by
+`r!` because each selection was "included `r!` times" — that overcounting note in your handwriting
+*is* the derivation.
+
+**Symmetry, for free:** `nCr = nC(n−r)`. Choosing which `r` to *include* is the same as choosing
+which `n−r` to *leave out*. (So `5C2 = 5C3 = 10` — no coincidence.)
+
+## Pascal's Triangle: the recurrence (your page-7 diagram, proved)
+
+Each entry is the sum of the two above it. As a formula:
+
+```
+nCr = (n−1)C(r−1) + (n−1)Cr
+```
+
+**Combinatorial proof (no algebra needed).** To choose `r` items from `n`, focus on one specific
+item — call it `X`. Every valid selection either:
+- **includes X** → we still need `r−1` more from the other `n−1` items: `(n−1)C(r−1)` ways, or
+- **excludes X** → we need all `r` from the other `n−1` items: `(n−1)Cr` ways.
+
+These two cases don't overlap and cover everything, so we **add** them. That's the recurrence — and
+it's why Pascal's triangle works. Building row by row:
+
+```
+            1
+          1   1
+        1   2   1
+      1   3   3   1
+    1   4   6   4   1        ← exactly your page-7 row
+```
+
+Each number = sum of the two diagonally above. (And row `n` is the coefficients of `(x+y)ⁿ` — the
+binomial theorem, which we'll fully unpack in Combinatorics II.)
+
+## Application: counting grid paths (your "Grid" page)
+
+From the top-left `(0,0)` to bottom-right `(n, m)`, moving only **right** or **down**, how many
+paths? Any path is just a sequence of moves: `m` Rights and `n` Downs in some order — total `n+m`
+moves. A path is fully decided by **choosing which `m` of the `n+m` moves are Rights**:
+
+```
+number of paths = (n + m)C(m) = (n+m)! / ( n! · m! )
+```
+
+That's exactly the `ᵐ⁺ⁿCₘ` you boxed in your notes — and it's why the "L / D string" framing
+works: every distinct arrangement of the move-string is one unique path.
+
+## Computing nCr mod p — the payoff of Blogs 02–04
+
+Real problems ask for `nCr modulo 10⁹+7`. We can't divide directly under a mod (Blog 04) — we
+multiply by **modular inverses** instead. Precompute factorials and their inverses **once**, then
+every query is `O(1)`:
+
+**C++**
+```cpp
+const long long MOD = 1e9 + 7;
+const int N = 1e6 + 5;
+long long fact[N], inv_fact[N];
+
+long long power(long long a, long long n, long long m) {       // Blog 02
+    long long r = 1; a %= m;
+    while (n) { if (n & 1) r = r * a % m; a = a * a % m; n >>= 1; }
+    return r;
+}
+void precompute() {
+    fact[0] = 1;
+    for (int i = 1; i < N; i++) fact[i] = fact[i-1] * i % MOD;
+    inv_fact[N-1] = power(fact[N-1], MOD - 2, MOD);            // Fermat inverse, Blog 04
+    for (int i = N-1; i > 0; i--) inv_fact[i-1] = inv_fact[i] * i % MOD;  // walk inverses down
+}
+long long nCr(int n, int r) {
+    if (r < 0 || r > n) return 0;
+    return fact[n] * inv_fact[r] % MOD * inv_fact[n-r] % MOD;  // n! · (r!)⁻¹ · ((n−r)!)⁻¹
+}
+```
+**Python**
+```python
+MOD = 10**9 + 7
+N = 10**6 + 5
+fact = [1] * N
+for i in range(1, N): fact[i] = fact[i-1] * i % MOD
+inv_fact = [1] * N
+inv_fact[N-1] = pow(fact[N-1], MOD - 2, MOD)          # Fermat inverse
+for i in range(N-1, 0, -1): inv_fact[i-1] = inv_fact[i] * i % MOD
+
+def nCr(n, r):
+    if r < 0 or r > n: return 0
+    return fact[n] * inv_fact[r] % MOD * inv_fact[n-r] % MOD
+```
+
+One clever line worth noting (first principles, not magic): we invert **only `fact[N-1]`** with one
+expensive `power()` call, then get every smaller inverse factorial for free using
+`inv_fact[i-1] = inv_fact[i] * i`, since `1/(i-1)! = (1/i!) · i`. One inversion, not a million.
+
+## Worked example: trace `5C2 mod 1e9+7`
+
+```
+fact[5] = 120,  fact[2] = 2,  fact[3] = 6
+nCr(5,2) = 120 · (2)⁻¹ · (6)⁻¹  (mod p)
+         = 120 / (2·6) = 120 / 12 = 10
+```
+The inverses turn the division into multiplication, and the answer is the same `10` you got by hand
+in your notes — now computed safely under a modulus for `n` up to a million.
+
+## 🎯 Where this math is used (practice — spot the pattern)
+
+1. "Choose a committee / team / subset of size `r`." → `nCr`.
+2. "Count lattice paths on a grid with only right/down moves." → `(n+m)C(m)`.
+3. "Distribute identical items into groups" → stars and bars, which reduces to a single `nCr`.
+4. "Coefficient of a term in `(x+y)ⁿ`" → `nCr` (binomial theorem).
+5. **DP optimization:** many counting DPs collapse into a closed-form `nCr` once you spot the
+   choose-structure — turning an `O(n²)` table into one formula.
+
+## 💻 Coding problems
+
+| Problem | Link | Skill |
+|---------|------|-------|
+| Binomial Coefficients | https://cses.fi/problemset/task/1079 | the exact `nCr mod p` machinery above |
+| Distributing Apples | https://cses.fi/problemset/task/1716 | stars and bars → one `nCr` |
+| Codeforces `combinatorics` tag | https://codeforces.com/problemset?tags=combinatorics | mixed |
+
+**References:**
+USACO Guide — Combinatorics → https://usaco.guide/gold/combo
+CP-Algorithms — Binomial coefficients → https://cp-algorithms.com/combinatorics/binomial-coefficients.html
+
+---
+
+## Recap
+
+- All counting is the **multiplication principle** (multiply independent choices). Arranging `n`
+  items gives `n!`; arranging `r` of them gives `P(n,r) = n!/(n−r)!`.
+- **Choosing** (order-free) divides out the `r!` overcounting: `nCr = n!/(r!(n−r)!)`. Pascal's
+  recurrence `nCr = (n−1)C(r−1) + (n−1)Cr` comes from "is item X in or out?", and grid paths are
+  just `(n+m)C(m)`.
+- **`nCr mod p`** is computed by precomputing factorials and **inverse** factorials (Fermat, Blog
+  04) — turning the division into safe modular multiplication.
+
+### Next up
+**Blog 06 — Combinatorics II: The Binomial Theorem & Counting Techniques**, where Pascal's triangle
+becomes the coefficients of `(x+y)ⁿ` (your binomial-theorem pages), and we add the two workhorse
+techniques: **stars and bars** and **inclusion–exclusion**.
+
+> *Your handwritten notes asked "where did `n!` come from?" and "how does `nCr` come up?" — and then
+> answered both by counting carefully. That instinct is the entire subject. Everything fancy in
+> combinatorics is just that same careful counting, dressed up.*
