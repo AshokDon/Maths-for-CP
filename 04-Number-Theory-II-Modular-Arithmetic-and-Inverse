@@ -1,0 +1,259 @@
+# Blog 04 — Number Theory II: Modular Arithmetic & Modular Inverse
+
+> Series template: **Intuition → Derivation → Worked Examples → Practice (where the math
+> is used) → Coding Problems.** Code in **C++** and **Python**.
+
+This is where two earlier blogs pay off. The `power()` engine from **Blog 02** and the idea of
+*coprimality* (`gcd = 1`) from **Blog 03** combine here to let us **divide under a modulus** — the
+exact tool that makes `nCr mod p` possible in the next module.
+
+---
+
+# Topic A — Modular Arithmetic
+
+## Intuition: it's clock math
+
+Look at a 12-hour clock. 5 hours after 9 o'clock isn't "14 o'clock" — it's **2 o'clock**. The clock
+*wraps around* after 12. That's modular arithmetic: we only ever keep the **remainder** after
+dividing by some number `m` (the modulus). On the clock, `m = 12`, and `14 mod 12 = 2`.
+
+## Why CP lives in this world
+
+Almost every counting problem ends with *"...output the answer modulo 1 000 000 007."* Two reasons:
+- **Real answers overflow.** The number of ways to do something can have thousands of digits. No
+  built-in integer type holds that. The remainder mod a fixed number always fits in a 64-bit `long`.
+- **`10⁹+7` is prime** (and a bit bigger than 10⁹). The "prime" part is the secret ingredient that
+  makes division work later in this post — remember Blog 03's coprimality.
+
+## The rules (and *why* they're allowed)
+
+The whole reason we can take remainders *as we go* — instead of computing a giant number and
+reducing at the end — is that **mod distributes over + , − , and ×**:
+
+```
+(a + b) mod m = ((a mod m) + (b mod m)) mod m
+(a − b) mod m = ((a mod m) − (b mod m) + m) mod m      ← note the + m
+(a · b) mod m = ((a mod m) · (b mod m)) mod m
+```
+
+This is exactly the property that justified reducing at every step in Blog 02's modular `power()`.
+Two gotchas, both first-principles, not arbitrary:
+
+- **Subtraction can go negative.** In C++, `(3 - 5) % 7` gives `-2`, not `5`. The remainder should
+  be in `0…m−1`, so add `m` and reduce again: `((3 - 5) % 7 + 7) % 7 = 5`. (Python's `%` already
+  returns a non-negative result, so you only need this fix in C++.)
+- **Division is NOT in the list.** `(a / b) mod m ≠ (a mod m)/(b mod m)`. Division is the hard one —
+  it's the entire point of Topic B.
+
+## Code helpers
+
+**C++**
+```cpp
+const long long MOD = 1e9 + 7;
+
+long long add(long long a, long long b) { return (a + b) % MOD; }
+long long sub(long long a, long long b) { return ((a - b) % MOD + MOD) % MOD; }  // +MOD fixes negatives
+long long mul(long long a, long long b) { return (a * b) % MOD; }
+```
+
+**Overflow note (the series standard).** With `MOD = 1e9+7`, two reduced values are each `< 10⁹`, so
+their product is `< 10¹⁸`, comfortably under the `long long` ceiling (~9.2 × 10¹⁸). **So plain
+`long long` multiplication is safe for the usual modulus.** Only when the modulus itself approaches
+`10¹⁸` (some problems use a huge prime) does `a * b` overflow first — then use a 128-bit intermediate:
+
+```cpp
+long long mulmod(long long a, long long b, long long m) { return (__int128)a * b % m; }
+```
+
+## Worked example: keep it small as you go
+
+Compute `(123 · 456) mod 100`, reducing at each step instead of multiplying out:
+```
+123 mod 100 = 23
+456 mod 100 = 56
+(23 · 56) mod 100 = 1288 mod 100 = 88
+```
+Same answer as `56088 mod 100 = 88`, but the intermediate numbers stayed tiny. Scale this up and
+it's the only reason large modular computations don't overflow.
+
+## 🎯 Where this math is used (practice — spot the pattern)
+
+1. Any problem ending in "modulo 10⁹+7" — counting paths, arrangements, DP states.
+2. "Compute `2ⁿ mod p`" and friends → modular `power()` (Blog 02) using these rules.
+3. **String hashing**: a string's hash is a polynomial evaluated mod a large prime.
+4. Avoiding overflow when a formula's true value is astronomically large but you only need it mod `m`.
+5. Detecting "is `X` divisible by `m`?" cheaply via `X mod m == 0`.
+
+## 💻 Coding problems
+
+| Problem | Link | Skill |
+|---------|------|-------|
+| Exponentiation | https://cses.fi/problemset/task/1095 | modular `power()` with these rules |
+| Bit Strings | https://cses.fi/problemset/task/1617 | `2ⁿ mod p` |
+| Codeforces `math` tag | https://codeforces.com/problemset?tags=math | mixed modular practice |
+
+**Reference:** USACO Guide — Modular Arithmetic → https://usaco.guide/gold/modular
+
+---
+
+# Topic B — Modular Inverse (how to divide under a modulus)
+
+## The problem
+
+Counting formulas are full of division: `nCr = n! / (r!·(n−r)!)`. But we just saw division **doesn't**
+play nice with mod. We can't compute `n! mod p`, then `(r!·(n−r)!) mod p`, and divide — the result
+is garbage. We need a different meaning of "divide."
+
+## Reframe: dividing is multiplying by an inverse
+
+Over normal numbers, "divide by 3" is the same as "multiply by 1/3", and `3 · (1/3) = 1`. So the
+**modular inverse** of `a` (written `a⁻¹`) is defined the same way — the thing you multiply `a` by to
+get `1`, but *mod m*:
+
+```
+a · a⁻¹ ≡ 1   (mod m)
+```
+
+Then "divide by `a`" becomes "multiply by `a⁻¹`", which mod *does* allow. The only question is: how
+do we find `a⁻¹`?
+
+## When does an inverse even exist?
+
+Here's Blog 03 coming back: **`a⁻¹` exists modulo `m` if and only if `gcd(a, m) = 1`** (a and m are
+coprime). Intuition: if `a` and `m` shared a factor, every multiple `a·k` would also carry that
+factor and could never land exactly on `1`. Since our usual modulus `10⁹+7` is **prime**, *every*
+`a` from `1` to `p−1` is coprime to it — so inverses always exist. That's why CP loves prime moduli.
+
+## Method 1 — Fermat's Little Theorem (when the modulus is prime)
+
+> **Fermat's Little Theorem:** if `p` is prime and `a` is not a multiple of `p`, then
+> `a^(p−1) ≡ 1 (mod p)`.
+
+**Derivation from first principles** (a clean cancellation argument):
+
+Take the nonzero residues `S = {1, 2, …, p−1}`. Multiply each by `a` (mod p). Claim: the results are
+just `S` **rearranged**. Why? If two collided, `a·i ≡ a·j (mod p)`, then `a·(i−j) ≡ 0`. Since `p` is
+prime and doesn't divide `a`, it must divide `(i−j)` — impossible for distinct `i, j` in range. So all
+`p−1` results are distinct and nonzero → a permutation of `S`. Multiply everything on both sides:
+
+```
+(a·1)(a·2)…(a·(p−1)) ≡ 1·2·…·(p−1)   (mod p)
+a^(p−1) · (p−1)!      ≡ (p−1)!         (mod p)
+```
+
+`(p−1)!` is coprime to `p`, so we cancel it from both sides:
+
+```
+a^(p−1) ≡ 1   (mod p)     ✓  (Fermat's Little Theorem)
+```
+
+Now the payoff. Rewrite `a^(p−1) = a · a^(p−2)`. That says `a · a^(p−2) ≡ 1`, which is *exactly* the
+definition of the inverse:
+
+```
+a⁻¹ ≡ a^(p−2)   (mod p)
+```
+
+So the modular inverse is **one call to the `power()` function from Blog 02.** Everything connects.
+
+**C++**
+```cpp
+long long power(long long a, long long n, long long m) {   // from Blog 02
+    long long r = 1; a %= m;
+    while (n > 0) { if (n & 1) r = r * a % m; a = a * a % m; n >>= 1; }
+    return r;
+}
+long long inverse(long long a) { return power(a, MOD - 2, MOD); }   // Fermat
+```
+**Python**
+```python
+def inverse(a, p=10**9 + 7):
+    return pow(a, p - 2, p)        # built-in pow does fast modular exponentiation
+```
+
+## Worked example: inverse of 3 mod 7
+
+`p = 7`, so `a⁻¹ ≡ a^(p−2) = 3^5 (mod 7)`.
+```
+3^5 = 243,   243 mod 7 = 243 − 238 = 5
+```
+So `3⁻¹ ≡ 5 (mod 7)`. **Check:** `3 · 5 = 15 ≡ 1 (mod 7)`. ✓
+
+Now actually *divide* with it. What is `2 / 3` modulo 7?
+```
+2 / 3  ≡  2 · 3⁻¹  ≡  2 · 5  =  10  ≡  3   (mod 7)
+```
+**Check:** does `3 · 3 ≡ 2 (mod 7)`? `9 mod 7 = 2`. ✓ The "fraction" 2/3 became the clean integer `3`
+in this world. That's the magic that makes `nCr mod p` work.
+
+## Method 2 — Extended Euclidean (works for *any* coprime modulus)
+
+If the modulus isn't prime (but `gcd(a, m) = 1`), Fermat doesn't apply. The general tool finds
+integers `x, y` with `a·x + m·y = gcd(a, m) = 1`. Taking that mod `m`: `a·x ≡ 1 (mod m)`, so **`x` is
+the inverse.**
+
+```cpp
+long long ext_gcd(long long a, long long b, long long &x, long long &y) {
+    if (b == 0) { x = 1; y = 0; return a; }
+    long long x1, y1, g = ext_gcd(b, a % b, x1, y1);
+    x = y1; y = x1 - (a / b) * y1;
+    return g;
+}
+long long inverse_any(long long a, long long m) {
+    long long x, y; ext_gcd(((a % m) + m) % m, m, x, y);
+    return ((x % m) + m) % m;
+}
+```
+(We'll *fully derive* extended Euclidean in its own blog; for now, know it's the prime-free backup.)
+
+## Bonus: precomputing for fast `nCr` (teaser for the Combinatorics module)
+
+For many `nCr` queries, precompute factorials and their inverses once. Then each query is `O(1)`:
+```cpp
+fact[0] = 1;
+for (int i = 1; i <= N; i++) fact[i] = fact[i-1] * i % MOD;
+inv_fact[N] = inverse(fact[N]);
+for (int i = N; i > 0; i--) inv_fact[i-1] = inv_fact[i] * i % MOD;   // walk inverses down
+// nCr = fact[n] * inv_fact[r] % MOD * inv_fact[n-r] % MOD;
+```
+This exact pattern is what the CSES "Binomial Coefficients" problem wants — we'll unpack it in the
+combinatorics blog.
+
+## 🎯 Where this math is used (practice — spot the pattern)
+
+1. **`nCr mod p`** — the headline use; needs `inverse(r!)` and `inverse((n−r)!)`.
+2. "Probability/expected value as a reduced fraction `p/q mod M`" — output `p · q⁻¹`.
+3. Any DP whose transition *divides* by a count (e.g. averaging) under a modulus.
+4. Modular linear equations `a·x ≡ b (mod m)` → `x ≡ b · a⁻¹`.
+5. Undoing a multiplication you applied earlier in a modular computation.
+
+## 💻 Coding problems
+
+| Problem | Link | Skill |
+|---------|------|-------|
+| Binomial Coefficients | https://cses.fi/problemset/task/1079 | factorials + modular inverse (Fermat) |
+| Exponentiation II | https://cses.fi/problemset/task/1712 | Fermat applied to the *exponent* (`a^(b^c)`) |
+| Codeforces `number theory` tag | https://codeforces.com/problemset?tags=number+theory | mixed |
+
+**References:**
+CP-Algorithms — Modular inverse → https://cp-algorithms.com/algebra/module-inverse.html
+CP-Algorithms — Binomial coefficients → https://cp-algorithms.com/combinatorics/binomial-coefficients.html
+
+---
+
+## Recap
+
+- **Modular arithmetic** is clock math: keep only remainders. Mod distributes over `+`, `−`, `×`
+  (mind negative subtraction in C++), which is *why* we can reduce at every step and never overflow.
+  For `MOD = 1e9+7`, plain `long long` multiply is safe; use `__int128` only for huge moduli.
+- **Division** is the exception — you multiply by a **modular inverse** instead. An inverse exists
+  when `gcd(a, m) = 1`; for a prime modulus, **`a⁻¹ ≡ a^(p−2)`** by Fermat's Little Theorem (which we
+  *derived* by cancellation) — a single `power()` call. Extended Euclidean handles non-prime moduli.
+
+### Next up
+**Blog 05 — Combinatorics I: Counting, Factorials, and `nCr`** (revisiting your original notes), where
+every tool from Number Theory finally clicks into place: we'll derive `nCr` from counting choices,
+then compute it `mod p` using the exact factorial-and-inverse machinery teased above.
+
+> *"Dividing by multiplying by the inverse" feels like a trick the first time. After you derive it
+> from Fermat, it stops being a trick and becomes a tool you trust. That's the whole philosophy.*
